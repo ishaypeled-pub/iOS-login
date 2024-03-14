@@ -14,6 +14,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         
+        // Start PerimeterX SDK here //
+        PerimeterxManager.shared.start()
+        
         if #available(iOS 13, *) {}
         else {
             self.window = UIWindow()

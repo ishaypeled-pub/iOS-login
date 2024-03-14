@@ -34,6 +34,7 @@ class APIDataManager {
     func sendLoginRequest(email: String, password: String, completion: @escaping (Bool) -> ()) {
         let request = requestForURL(url: loginURL)
         let dataTask = URLSession.shared.dataTask(with: request) { data, response, error in
+            self.handleResponse(data: data, response: response, error: error)
             
             var result = false
             if let response = response as? HTTPURLResponse {
@@ -47,6 +48,7 @@ class APIDataManager {
     func sendProductsRequest(completion: @escaping ([Product]?) -> ()) {
         let request = requestForURL(url: productsURL)
         let dataTask = URLSession.shared.dataTask(with: request) { data, response, error in
+            self.handleResponse(data: data, response: response, error: error)
             
             var products: [Product]?
             if let response = response as? HTTPURLResponse, response.statusCode == 200 {
@@ -68,6 +70,7 @@ class APIDataManager {
     func loadImage(url: String, completion: @escaping (UIImage?) -> ()) {
         let request = requestForURL(url: URL(string: url)!)
         let dataTask = URLSession.shared.dataTask(with: request) { data, response, error in
+            self.handleResponse(data: data, response: response, error: error)
             
             var image: UIImage?
             if let data = data {
@@ -82,6 +85,41 @@ class APIDataManager {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         
+        // When PXPolicy.urlRequestInterceptionType is set to `PXPolicyUrlRequestInterceptionType/none` => get HTTP headers from PerimeterX and add them to your request //
+        if PerimeterxManager.shared.urlRequestInterceptionType == .none {
+            let headers = PerimeterX.headersForURLRequest()
+            request.allHTTPHeaderFields = headers
+        }
+        
         return request
+    }
+    
+    private func handleResponse(data: Data?, response: URLResponse?, error: Error?) {
+        if let error = error {
+            // When PXPolicy.urlRequestInterceptionType is set to any value rather than `PXPolicyUrlRequestInterceptionType/none`  => check that the error is "Request blocked by PerimeterX" //
+            if PerimeterxManager.shared.urlRequestInterceptionType != .none {
+                if PerimeterX.isRequestBlockedError(error: error) {
+                    print("request was blocked by PX")
+                }
+                if PerimeterX.isChallengeSolvedError(error: error) {
+                    print("request was blocked by PX and user solved the challenge")
+                }
+                if PerimeterX.isChallengeCancelledError(error: error) {
+                    print("request was blocked by PX and challenge was cancelled")
+                }
+            }
+        }
+        
+        if let data = data, let response = response as? HTTPURLResponse {
+            // When PXPolicy.urlRequestInterceptionType is set to `PXPolicyUrlRequestInterceptionType/none` => pass the data and response to PerimeterX to handle it //
+            if PerimeterxManager.shared.urlRequestInterceptionType == .none {
+                let isHandledByPX = PerimeterX.handleResponse(response: response, data: data) { result in
+                    print("challenge result = \(result)")
+                }
+                if isHandledByPX {
+                    print("block response was handled by PX")
+                }
+            }
+        }
     }
 }
